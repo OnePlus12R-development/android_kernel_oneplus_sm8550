@@ -302,6 +302,10 @@ void operate_mode_switch(struct touchpanel_data *ts)
 			mode_switch_health(ts, MODE_EDGE, ts->limit_enable);
 		}
 
+		if (ts->game_switch_support) {
+			mode_switch_health(ts, MODE_GAME, ts->noise_level);
+		}
+
 		if (ts->glove_mode_v2_support) {
 			mode_switch_health(ts, MODE_GLOVE, ts->glove_enable);
 		}
