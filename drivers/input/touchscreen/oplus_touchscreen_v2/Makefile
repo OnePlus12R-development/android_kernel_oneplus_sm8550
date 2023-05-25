@@ -44,3 +44,5 @@ obj-$(CONFIG_TOUCHPANEL_ILITEK) += ilitek/
 obj-$(CONFIG_TOUCHPANEL_JADARD) += Jadard/
 obj-$(CONFIG_TOUCHPANEL_ST) += St/
 obj-$(CONFIG_TOUCHPANEL_CHIPONE) += chipone/
+
+KBUILD_CFLAGS += -Wframe-larger-than=4096
