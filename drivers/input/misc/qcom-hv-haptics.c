@@ -56,8 +56,8 @@
 #endif //OPLUS_FEATURE_RICHTAP_SUPPORT
 
 //#ifdef OPLUS_FEATURE_CHG_BASIC
-#undef dev_dbg
-#define dev_dbg dev_err
+//#undef dev_dbg
+//#define dev_dbg dev_err
 //#endif
 #define CREATE_TRACE_POINTS
 #include <trace/events/qcom_haptics.h>
