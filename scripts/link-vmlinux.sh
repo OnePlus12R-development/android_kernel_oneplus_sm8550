@@ -191,7 +191,7 @@ vmlinux_link()
 	ldflags="${ldflags} ${wl}--script=${objtree}/${KBUILD_LDS}"
 
 	# The kallsyms linking does not need debug symbols included.
-	if [ "$output" != "${output#.tmp_vmlinux.kallsyms}" ] ; then
+	if [ -n "${strip_debug}" ] ; then
 		ldflags="${ldflags} ${wl}--strip-debug"
 	fi
 
@@ -222,8 +222,6 @@ gen_btf()
 		echo >&2 "BTF: ${1}: pahole version $(${PAHOLE} --version) is too old, need at least v1.16"
 		return 1
 	fi
-
-	vmlinux_link ${1}
 
 	info "BTF" ${2}
 	LLVM_OBJCOPY="${OBJCOPY}" ${PAHOLE} -J ${PAHOLE_FLAGS} ${1}
@@ -267,15 +265,17 @@ kallsyms()
 }
 
 # Perform one step in kallsyms generation, including temporary linking of
-# vmlinux.
+# vmlinux. The temporary vmlinux already linked for BTF is reused as is.
 kallsyms_step()
 {
 	kallsymso_prev=${kallsymso}
-	kallsyms_vmlinux=.tmp_vmlinux.kallsyms${1}
-	kallsymso=${kallsyms_vmlinux}.o
-	kallsyms_S=${kallsyms_vmlinux}.S
+	kallsyms_vmlinux=.tmp_vmlinux${1}
+	kallsymso=${kallsyms_vmlinux}.kallsyms.o
+	kallsyms_S=${kallsyms_vmlinux}.kallsyms.S
 
-	vmlinux_link ${kallsyms_vmlinux} "${kallsymso_prev}" ${btf_vmlinux_bin_o}
+	if [ "${kallsyms_vmlinux}" != "${btf_vmlinux}" ]; then
+		vmlinux_link ${kallsyms_vmlinux} "${kallsymso_prev}" ${btf_vmlinux_bin_o}
+	fi
 	kallsyms ${kallsyms_vmlinux} ${kallsyms_S}
 
 	info AS ${kallsymso}
@@ -353,10 +353,17 @@ info GEN modules.builtin
 tr '\0' '\n' < modules.builtin.modinfo | sed -n 's/^[[:alnum:]:_]*\.file=//p' |
 	tr ' ' '\n' | uniq | sed -e 's:^:kernel/:' -e 's/$/.ko/' > modules.builtin
 
+strip_debug=
+btf_vmlinux=""
 btf_vmlinux_bin_o=""
 if [ -n "${CONFIG_DEBUG_INFO_BTF}" ]; then
+	# The BTF needs debug symbols, so this link keeps them. The same
+	# temporary vmlinux doubles as kallsyms step 1, as .btf.vmlinux.bin.o
+	# carries no symbols and does not change the kallsyms size.
+	btf_vmlinux=.tmp_vmlinux1
 	btf_vmlinux_bin_o=.btf.vmlinux.bin.o
-	if ! gen_btf .tmp_vmlinux.btf $btf_vmlinux_bin_o ; then
+	vmlinux_link ${btf_vmlinux}
+	if ! gen_btf ${btf_vmlinux} ${btf_vmlinux_bin_o}; then
 		echo >&2 "Failed to generate BTF for vmlinux"
 		echo >&2 "Try to disable CONFIG_DEBUG_INFO_BTF"
 		exit 1
@@ -391,6 +398,9 @@ if [ -n "${CONFIG_KALLSYMS}" ]; then
 	# a)  Verify that the System.map from vmlinux matches the map from
 	#     ${kallsymso}.
 
+	# The kallsyms linking does not need debug symbols included.
+	strip_debug=1
+
 	kallsyms_step 1
 	kallsyms_step 2
 
@@ -403,6 +413,7 @@ if [ -n "${CONFIG_KALLSYMS}" ]; then
 	fi
 fi
 
+strip_debug=
 vmlinux_link vmlinux "${kallsymso}" ${btf_vmlinux_bin_o}
 
 # fill in BTF IDs
