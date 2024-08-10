@@ -145,10 +145,12 @@
 #define PLATFORM_SUPPORT_TIMESPEC 1
 #elif defined CONFIG_OPLUS_SM8550_CHARGER
 #include "charger_ic/oplus_battery_sm8550.h"
+#elif defined OPLUS_CHG_SEPARATE_MUSE
+#include "charger_ic/oplus_battery_sm6115R.h"
 #elif defined CONFIG_OPLUS_SM6375R_CHARGER
 #include "charger_ic/oplus_battery_sm6375.h"
 #elif defined CONFIG_OPLUS_SM6115R_CHARGER
-#include "charger_ic/oplus_battery_sm6115R.h"
+#include "charger_ic/oplus_battery_sm6375.h"
 #else /* CONFIG_OPLUS_MSM8953_CHARGER */
 #include "charger_ic/oplus_battery_msm8976.h"
 #endif /* CONFIG_OPLUS_MSM8953_CHARGER */
@@ -161,6 +163,10 @@
 #elif IS_ENABLED(CONFIG_FB)
 #include <linux/notifier.h>
 #include <linux/fb.h>
+#endif
+
+#if IS_ENABLED(CONFIG_OPLUS_CHG_TEST_KIT)
+#include "../test-kit/test-kit.h"
 #endif
 
 #if IS_ENABLED(CONFIG_DRM_PANEL_NOTIFY) || IS_ENABLED(CONFIG_OPLUS_CHG_DRM_PANEL_NOTIFY)
@@ -412,6 +418,21 @@ enum {
 	PD_ACTIVE,
 	PD_PPS_ACTIVE,
 };
+
+enum cc_mode_type {
+	MODE_DEFAULT = 0,
+	MODE_SINK,
+	MODE_SRC,
+	MODE_DRP
+};
+#if IS_ENABLED(CONFIG_OPLUS_CHG_TEST_KIT)
+enum situations_type {
+	SITUATION_DEFAULT = 0,
+	SITUATION_IDLE,
+	SITUATION_OTG,
+	SITUATION_CHARGING
+};
+#endif /* CONFIG_OPLUS_CHG_TEST_KIT */
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
 enum oplus_power_supply_type {
@@ -1462,6 +1483,12 @@ struct oplus_chg_chip {
 	bool full_pre_ffc_judge;
 	int full_pre_ffc_mv;
 	bool boot_reset_adapter;
+#if IS_ENABLED(CONFIG_OPLUS_CHG_TEST_KIT)
+	struct test_feature *chg_switch1_gpio_test;
+	struct test_feature *chg_switch2_gpio_test;
+	struct test_feature *chg_uart_gpio_test;
+	struct test_feature *typec_port_test;
+#endif
 	bool usbin_abnormal_status;
 	bool support_check_usbin_status;
 	int check_usbin_from_adsp_cnt;
@@ -1876,6 +1903,9 @@ void oplus_chg_get_aging_ffc_offset(struct oplus_chg_chip *chip,
 int oplus_get_ccdetect_online(void);
 bool oplus_chg_get_led_status(void);
 int oplus_chg_adspvoocphy_get_abnormal_adapter_disconnect_cnt(void);
+#if IS_ENABLED(CONFIG_OPLUS_CHG_TEST_KIT)
+void oplus_test_kit_unregister(void);
+#endif
 int oplus_get_slow_chg_current(int batt_curve_current);
 int oplus_chg_track_upload_slow_chg_info(struct oplus_chg_chip *chip, int pct, int watt, int en);
 int oplus_chg_track_upload_mmi_chg_info(struct oplus_chg_chip *chip, int mmi_chg);
