@@ -511,7 +511,8 @@ LZ4		= lz4
 XZ		= xz
 ZSTD		= zstd
 
-PAHOLE_FLAGS	= $(shell PAHOLE=$(PAHOLE) $(srctree)/scripts/pahole-flags.sh)
+PAHOLE_FLAGS	= $(shell PAHOLE=$(PAHOLE) JOBS=$(patsubst -j%,%,$(filter -j%,$(MAKEFLAGS))) \
+		  $(srctree)/scripts/pahole-flags.sh)
 
 CHECKFLAGS     := -D__linux__ -Dlinux -D__STDC__ -Dunix -D__unix__ \
 		  -Wbitwise -Wno-return-void -Wno-unknown-attribute $(CF)
