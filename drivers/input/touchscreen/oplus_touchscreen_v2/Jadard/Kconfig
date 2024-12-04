@@ -1,0 +1,4 @@
+#
+# Jadard Touchscreen driver configuration
+#
+source "drivers/input/touchscreen/oplus_touchscreen_v2/Jadard/jd9365tg/Kconfig"

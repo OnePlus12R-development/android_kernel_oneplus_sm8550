@@ -1,0 +1,7 @@
+
+config TOUCHPANEL_CHIPONE_ICNL9916
+#	default y
+	tristate "TP chipone icnl9916 IC enable or not for OPLUS"
+	help
+	Say Y to enable driver for Touchpanel useing chipone icnl9916
+	Say M to enable driver for Touchpanel useing chipone icnl9916 as module

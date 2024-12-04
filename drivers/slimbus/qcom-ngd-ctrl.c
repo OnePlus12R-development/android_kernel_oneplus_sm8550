@@ -1108,6 +1108,12 @@ static int qcom_slim_ngd_xfer_msg(struct slim_controller *sctrl,
 	}
 	ret = qcom_slim_ngd_tx_msg_post(ctrl, pbuf, txn->rl);
 	if (ret) {
+//#ifdef OPLUS_ARCH_EXTENDS
+		if (usr_msg) {
+			pr_err("%s: qcom_slim_ngd_tx_msg_post failed, ret = %d \n", __func__, ret);
+			txn->comp = NULL;
+		}
+//#endif /* OPLUS_ARCH_EXTENDS */
 		mutex_unlock(&ctrl->tx_lock);
 		return ret;
 	}
@@ -1116,6 +1122,9 @@ static int qcom_slim_ngd_xfer_msg(struct slim_controller *sctrl,
 	if (!timeout) {
 		SLIM_ERR(ctrl, "%s: TX timed out:MC:0x%x,mt:0x%x", txn->mc,
 			 __func__, txn->mt);
+//#ifdef OPLUS_ARCH_EXTENDS
+		pr_err("%s: TX timed out:MC:0x%x,mt:0x%x \n", __func__, txn->mc, txn->mt);
+//#endif /* OPLUS_ARCH_EXTENDS */
 		mutex_unlock(&ctrl->tx_lock);
 		ctrl->capability_timeout = true;
 		return -ETIMEDOUT;
@@ -1126,6 +1135,9 @@ static int qcom_slim_ngd_xfer_msg(struct slim_controller *sctrl,
 		if (!timeout) {
 			SLIM_ERR(ctrl, "%s: TX usr_msg timed out:MC:0x%x,mt:0x%x",
 				 __func__, txn->mc, txn->mt);
+//#ifdef OPLUS_ARCH_EXTENDS
+			pr_err("%s: TX usr_msg timed out:MC:0x%x,mt:0x%x \n", __func__, txn->mc, txn->mt);
+//#endif /* OPLUS_ARCH_EXTENDS */
 			ctrl->capability_timeout = true;
 			txn->comp = NULL;
 			mutex_unlock(&ctrl->tx_lock);

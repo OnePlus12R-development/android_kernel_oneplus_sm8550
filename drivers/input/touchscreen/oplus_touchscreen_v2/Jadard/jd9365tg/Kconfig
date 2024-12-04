@@ -1,0 +1,9 @@
+#
+# Jadard Touchscreen driver configuration
+#
+config TOUCHPANEL_JADARD_JD9365TG
+#	default y
+	tristate "TP Jadard jd9365tg IC enable or not for  OPLUS"
+	help
+	  Say M here if you have a Jadard chipset touchscreen.
+	  If unsure, say N.

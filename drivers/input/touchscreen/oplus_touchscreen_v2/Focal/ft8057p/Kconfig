@@ -1,0 +1,5 @@
+config TOUCHPANEL_FOCAL_FT8057P
+	tristate "TP focal ft8057p IC enable or not for OPLUS"
+	help
+	say Y to enable driver for Touchpanel using Focal FT8057P
+	Say M to enable driver for Touchpanel using Focal FT8057P as module
