@@ -75,7 +75,7 @@ TRACE_EVENT(bright_screen_monitor,
 #endif /* _TRACE_THEIA_H */
 
 #undef TRACE_INCLUDE_PATH
-#define TRACE_INCLUDE_PATH .
+#define TRACE_INCLUDE_PATH ./
 
 #undef TRACE_INCLUDE_FILE
 #define TRACE_INCLUDE_FILE theia_trace
