@@ -20,7 +20,7 @@
 #include <linux/of_gpio.h>
 #include <linux/gpio.h>
 /*add WAS4783 support*/
-#include <oplus_audio_switch.h>
+#include "../../power/oplus/v2/include/oplus_audio_switch.h"
 /* Add for 3rd protocal stack notifier */
 #if IS_ENABLED(CONFIG_TCPC_CLASS)
 #include <tcpci.h>
