@@ -25,9 +25,7 @@ clone_tools() {
 
 setup_ksu() {
     cd $KERNEL_PATH
-    curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -
-}
-
+    curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
 ArchLinux() {
     # Check if yay is installed
     if ! command -v yay &> /dev/null
