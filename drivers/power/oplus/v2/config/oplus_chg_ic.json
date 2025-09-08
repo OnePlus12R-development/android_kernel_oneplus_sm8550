@@ -522,13 +522,6 @@
                         "zh": "BATT_BAL错误"
                     },
                     "str": "BATT_BAL"
-                },
-                {
-                    "lable": "OPLUS_IC_ERR_BURN",
-                    "desc": {
-                        "zh": "IC烧坏"
-                    },
-                    "str": "BURN"
                 }
             ]
         },

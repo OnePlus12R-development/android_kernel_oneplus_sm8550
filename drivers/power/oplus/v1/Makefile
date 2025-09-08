@@ -7,7 +7,7 @@ gki_support = yes
 endif
 
 subdir-ccflags-y += -I$(srctree)/$(src)
-subdir-ccflags-y += -Werror=parentheses -Wframe-larger-than=3042
+subdir-ccflags-y += -Werror=parentheses -Wframe-larger-than=4224
 subdir-ccflags-y += -DOPLUS_CHG_KO_BUILD
 ccflags-$(CONFIG_OPLUS_DYNAMIC_CONFIG_CHARGER) += -I$(srctree)/drivers/power/oplus/config
 

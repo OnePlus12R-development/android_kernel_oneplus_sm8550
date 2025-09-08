@@ -855,9 +855,9 @@ static int battery_chg_write(struct battery_chg_dev *bcdev, void *data,
 			pr_err("Error, timed out sending message\n");
 			if (g_oplus_chip)
 				g_oplus_chip->transfer_timeout_count++;
+			oplus_chg_track_upload_adsp_err_info(
+				bcdev, TRACK_ADSP_ERR_GLINK_ABNORMAL);
 			mutex_unlock(&bcdev->rw_lock);
-                        oplus_chg_track_upload_adsp_err_info(
-                                bcdev, TRACK_ADSP_ERR_GLINK_ABNORMAL);
 			return -ETIMEDOUT;
 		}
 
@@ -7907,10 +7907,8 @@ static int oplus_chg_set_input_current(int current_ma)
 		goto aicl_return;
 	}
 
-	if (max_pdo_current > 0) {
+	if (max_pdo_current > 0)
 		current_ma = min(current_ma, chip->pd_curr_max);
-		current_ma = min(current_ma, max_pdo_current);
-	}
 	chg_err("current_ma = %d\n", current_ma);
 
 	rc = write_property_id(bcdev, pst, prop_id, DEFAULT_CURR_BY_CC * 1000);

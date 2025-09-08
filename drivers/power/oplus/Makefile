@@ -30,6 +30,8 @@ endif
 
 endif
 
+obj-$(CONFIG_OPLUS_CHG_TEST_KIT) += test-kit/
+obj-$(CONFIG_OPLUS_FEATURE_CHG_DEBUG_KIT) += debug-kit/
 obj-$(CONFIG_OPLUS_DYNAMIC_CONFIG) += config/
 obj-$(CONFIG_OPLUS_WIRELESS_PEN) += wireless_pen/
 

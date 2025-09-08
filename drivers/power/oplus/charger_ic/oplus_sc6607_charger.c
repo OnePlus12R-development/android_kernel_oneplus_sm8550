@@ -6549,7 +6549,7 @@ static int sc6607_voocphy_svooc_hw_setting(struct oplus_voocphy_manager *chip)
 	ret = sc6607_field_write(g_chip, F_IBUS_OCP, reg_data); /*IBUS_OCP_UCP:4.25A*/
 	ret = sc6607_set_watchdog_timer(g_chip, 1000);
 	ret = sc6607_field_write(g_chip, F_MODE, 0x0);
-	ret = sc6607_field_write(g_chip, F_PMID2OUT_OVP, 0x07); /*PMID2OUT_OVP:600mV*/
+	ret = sc6607_field_write(g_chip, F_PMID2OUT_OVP, 0x05);
 	ret = sc6607_field_write(g_chip, F_CHG_EN, true);
 	ret = sc6607_field_write(g_chip, F_PERFORMANCE_EN, true);
 	sc6607_set_sstimeout_ucp_enable(chip, false);

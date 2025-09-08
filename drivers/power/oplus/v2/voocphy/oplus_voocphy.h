@@ -918,9 +918,6 @@ struct oplus_voocphy_manager {
 	bool cp_err_uploading;
 
 	int plc_status;
-	bool ic_abnormal;
-	bool slave_ic_abnormal;
-	struct delayed_work clear_ic_abnormal_status_work;
 };
 
 struct oplus_voocphy_operations {
@@ -963,7 +960,6 @@ struct oplus_voocphy_operations {
 	void (*dual_chan_buck_set_ucp)(struct oplus_voocphy_manager *chip, int ucp_value);
 	int (*upload_cp_error)(struct oplus_voocphy_manager *chip, int err_type);
 	int (*get_cp_error_type)(struct oplus_voocphy_manager *chip, int *err_type);
-	bool (*ic_is_abnormal)(struct oplus_voocphy_manager *chip);
 };
 
 #define VOOCPHY_LOG_BUF_LEN 1024

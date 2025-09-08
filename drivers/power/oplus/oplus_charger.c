@@ -135,8 +135,6 @@ static struct oplus_chg_chip *g_charger_chip = NULL;
 #define QC_TEMP_HIGH_SHAKE 10
 
 #define VBUS_SOC_1_WITH_CHG 3200
-#define FULL_COUNTS_SW 5
-#define FULL_COUNTS_HW 4
 
 #define PLC_DISABLE_WAIT_DELAY 1000
 
@@ -5702,9 +5700,6 @@ int oplus_chg_parse_charger_dt(struct oplus_chg_chip *chip)
 	if (rc < 0) {
 		chip->limits.ffc2_normal_vfloat_over_sw_limit = chip->limits.ffc_normal_vfloat_over_sw_limit;
 	}
-	rc = of_property_read_u32(node, "qcom,sw_check_full_cnt", &chip->sw_check_full_cnt);
-	if (rc < 0)
-		chip->sw_check_full_cnt = FULL_COUNTS_SW;
 
 	chip->limits.default_ffc1_normal_vfloat_sw_limit = chip->limits.ffc1_normal_vfloat_sw_limit;
 	chip->limits.default_ffc1_warm_vfloat_sw_limit = chip->limits.ffc1_warm_vfloat_sw_limit;
@@ -5728,8 +5723,7 @@ int oplus_chg_parse_charger_dt(struct oplus_chg_chip *chip)
 			limits.ff1_exit_step_ma = %d \
 			limits.ff1_warm_exit_step_ma = %d \
 			pd_input_current_charger_ma = %d \
-			qc_input_current_charger_ma = %d\n \
-			sw_check_full_cnt = %d",
+			qc_input_current_charger_ma = %d\n",
 			    chip->limits.ff1_normal_fastchg_ma, chip->limits.ffc2_temp_warm_decidegc,
 			    chip->limits.ffc2_temp_high_decidegc, chip->limits.ffc2_normal_fastchg_ma,
 			    chip->limits.ffc2_warm_fastchg_ma, chip->limits.ffc2_exit_step_ma,
@@ -5738,7 +5732,7 @@ int oplus_chg_parse_charger_dt(struct oplus_chg_chip *chip)
 			    chip->limits.ffc1_temp_normal_vfloat_mv, chip->limits.ffc2_temp_normal_vfloat_mv,
 			    chip->limits.ffc_normal_vfloat_over_sw_limit, chip->limits.ffc2_temp_low_decidegc,
 			    chip->limits.ff1_exit_step_ma, chip->limits.ff1_warm_exit_step_ma,
-			    chip->limits.pd_input_current_charger_ma, chip->limits.qc_input_current_charger_ma, chip->sw_check_full_cnt);
+			    chip->limits.pd_input_current_charger_ma, chip->limits.qc_input_current_charger_ma);
 
 	rc = of_property_read_u32(node, "qcom,default_iterm_ma", &chip->limits.default_iterm_ma);
 	if (rc < 0) {
@@ -11006,16 +11000,14 @@ void monitor_ui_soc_to_enable_chg_up_limit(struct oplus_chg_chip *chip)
 			over_count = 0;
 			oplus_enforce_chg_up_limit_result(chip, true);
 			return;
-		} else if (chip->ui_soc == chg_up_limit_data.charge_limit_value &&
-			chg_up_limit_data.charge_limit_value < OPLUS_FULL_SOC) {
+		} else if (chip->ui_soc == chg_up_limit_data.charge_limit_value) {
 			over_count++;
 			if (over_count >= CHG_UP_DELAY_COUNT) {
 				over_count = CHG_UP_DELAY_COUNT;
 				oplus_enforce_chg_up_limit_result(chip, true);
 			}
 			return;
-		} else if (chip->ui_soc >= chg_up_limit_data.charge_limit_recharge_value &&
-			chg_up_limit_data.charge_limit_recharge_value < OPLUS_FULL_SOC) {
+		} else if (chip->ui_soc >= chg_up_limit_data.charge_limit_recharge_value) {
 			over_count = 0;
 			return;
 		} else {
@@ -11487,6 +11479,9 @@ void oplus_comm_get_rechg_soc_limit(int *rechg_soc, bool *en)
 	*en = chip->rechg_soc_en;
 }
 
+#define FULL_COUNTS_SW 5
+#define FULL_COUNTS_HW 4
+
 static int oplus_chg_check_sw_full(struct oplus_chg_chip *chip)
 {
 	int vbatt_full_vol_sw = 0;
@@ -11526,13 +11521,13 @@ static int oplus_chg_check_sw_full(struct oplus_chg_chip *chip)
 	if (chip->batt_volt > vbatt_full_vol_sw) {
 		if (chip->icharging < 0 && (chip->icharging * -1) <= chip->limits.iterm_ma) {
 			chip->sw_full_count++;
-			if (chip->sw_full_count > chip->sw_check_full_cnt) {
+			if (chip->sw_full_count > FULL_COUNTS_SW) {
 				chip->sw_full_count = 0;
 				chip->sw_full = true;
 			}
 		} else if (chip->icharging >= 0) {
 			chip->sw_full_count++;
-			if (chip->sw_full_count > chip->sw_check_full_cnt * 2) {
+			if (chip->sw_full_count > FULL_COUNTS_SW * 2) {
 				chip->sw_full_count = 0;
 				chip->sw_full = true;
 				charger_xlog_printk(CHG_LOG_CRTI, "[BATTERY] Battery full by sw when icharging>=0!!\n");
@@ -11647,13 +11642,13 @@ static int oplus_chg_check_sw_sub_batt_full(struct oplus_chg_chip *chip)
 	if (chip->sub_batt_volt > sub_vbatt_full_vol_sw) {
 		if (chip->sub_batt_icharging < 0 && (chip->sub_batt_icharging * -1) <= chip->limits.sub_iterm_ma) {
 			chip->sw_sub_batt_full_count++;
-			if (chip->sw_sub_batt_full_count > chip->sw_check_full_cnt) {
+			if (chip->sw_sub_batt_full_count > FULL_COUNTS_SW) {
 				chip->sw_sub_batt_full_count = 0;
 				chip->sw_sub_batt_full = true;
 			}
 		} else if (chip->sub_batt_icharging >= 0) {
 			chip->sw_sub_batt_full_count++;
-			if (chip->sw_sub_batt_full_count > chip->sw_check_full_cnt * 2) {
+			if (chip->sw_sub_batt_full_count > FULL_COUNTS_SW * 2) {
 				chip->sw_sub_batt_full_count = 0;
 				chip->sw_sub_batt_full = true;
 				charger_xlog_printk(CHG_LOG_CRTI,

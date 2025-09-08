@@ -1054,66 +1054,23 @@ int oplus_gauge_get_qmax_v1(int *qmax1, int *qmax2)
 
 int oplus_gauge_get_fcc(int *fcc1, int *fcc2)
 {
-	if (!g_gauge_chip || !g_gauge_chip->gauge_ops) {
+	if (!g_gauge_chip || !g_gauge_chip->gauge_ops || !g_gauge_chip->gauge_ops->get_batt_fcc)
 		return -1;
-	} else {
-		if (g_gauge_chip->gauge_ops->get_batt_fcc)
-			g_gauge_chip->gauge_ops->get_batt_fcc(fcc1, fcc2);
-		else if (g_gauge_chip->gauge_ops->get_battery_fcc) {
-			*fcc1 = g_gauge_chip->gauge_ops->get_battery_fcc();
-			if (g_sub_gauge_chip && g_sub_gauge_chip->gauge_ops && g_sub_gauge_chip->gauge_ops->get_battery_fcc) {
-				*fcc2 = g_sub_gauge_chip->gauge_ops->get_battery_fcc();
-			}
-			else
-				*fcc2 = 0;
-		}
-		else
-			return -1;
-	}
-	return 0;
+	return g_gauge_chip->gauge_ops->get_batt_fcc(fcc1, fcc2);
 }
 
 int oplus_gauge_get_cc(int *cc1, int *cc2)
 {
-	if (!g_gauge_chip || !g_gauge_chip->gauge_ops) {
+	if (!g_gauge_chip || !g_gauge_chip->gauge_ops || !g_gauge_chip->gauge_ops->get_batt_cc)
 		return -1;
-	} else {
-		if (g_gauge_chip->gauge_ops->get_batt_cc)
-			g_gauge_chip->gauge_ops->get_batt_cc(cc1, cc2);
-		else if (g_gauge_chip->gauge_ops->get_battery_cc) {
-			*cc1 = g_gauge_chip->gauge_ops->get_battery_cc();
-			if (g_sub_gauge_chip && g_sub_gauge_chip->gauge_ops && g_sub_gauge_chip->gauge_ops->get_battery_cc) {
-				*cc2 = g_sub_gauge_chip->gauge_ops->get_battery_cc();
-			}
-			else
-				*cc2 = 0;
-		}
-		else
-			return -1;
-	}
-	return 0;
+	return g_gauge_chip->gauge_ops->get_batt_cc(cc1, cc2);
 }
 
 int oplus_gauge_get_soh(int *soh1, int *soh2)
 {
-	if (!g_gauge_chip || !g_gauge_chip->gauge_ops)
+	if (!g_gauge_chip || !g_gauge_chip->gauge_ops || !g_gauge_chip->gauge_ops->get_batt_soh)
 		return -1;
-	else {
-		if (g_gauge_chip->gauge_ops->get_batt_soh) {
-			g_gauge_chip->gauge_ops->get_batt_soh(soh1, soh2);
-		}
-		else if (g_gauge_chip->gauge_ops->get_battery_soh) {
-			*soh1 = g_gauge_chip->gauge_ops->get_battery_soh();
-			if (g_sub_gauge_chip && g_sub_gauge_chip->gauge_ops && g_sub_gauge_chip->gauge_ops->get_battery_soh) {
-				*soh2 = g_sub_gauge_chip->gauge_ops->get_battery_soh();
-			}
-			else
-				*soh2 = 0;
-		}
-		else
-			return -1;
-	}
-	return 0;
+	return g_gauge_chip->gauge_ops->get_batt_soh(soh1, soh2);
 }
 
 int oplus_gauge_get_calib_time(int *dod_calib_time, int *qmax_calib_time, int gauge_index)
