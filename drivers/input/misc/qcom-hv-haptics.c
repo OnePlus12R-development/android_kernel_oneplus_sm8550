@@ -2789,9 +2789,6 @@ static int haptics_load_custom_effect(struct haptics_chip *chip,
 	kvfree(fifo->samples);
 	fifo->samples = kcalloc(custom_data.length, sizeof(u8), GFP_KERNEL);
 	if (!fifo->samples) {
-#ifdef OPLUS_FEATURE_CHG_BASIC
-		dev_err(chip->dev, "failed to kcalloc memory, try vmalloc\n");
-#endif
 		fifo->samples = vmalloc(custom_data.length);
 		if (!fifo->samples) {
 			rc = -ENOMEM;
@@ -5813,15 +5810,16 @@ static int haptics_detect_lra_frequency(struct haptics_chip *chip)
 	if (!chip->config.sw_cmd_freq_det)
 		val = AUTORES_EN_BIT;
 
-	if (chip->hw_type == HAP525_HV)
-		val = AUTORES_EN_DLY_7_CYCLES << AUTORES_EN_DLY_SHIFT|
+	if (chip->hw_type >= HAP525_HV)
 #ifdef OPLUS_FEATURE_CHG_BASIC
+		val |= AUTORES_EN_DLY_7_CYCLES << AUTORES_EN_DLY_SHIFT |
 			AUTORES_ERR_WINDOW_50_PERCENT;
 #else
+        val |= AUTORES_EN_DLY_7_CYCLES << AUTORES_EN_DLY_SHIFT |
 			AUTORES_ERR_WINDOW_25_PERCENT;
 #endif
 	else
-		val |= AUTORES_EN_DLY_6_CYCLES << AUTORES_EN_DLY_SHIFT |
+		val = AUTORES_EN_DLY_6_CYCLES << AUTORES_EN_DLY_SHIFT|
 			AUTORES_ERR_WINDOW_50_PERCENT;
 
 	rc = haptics_masked_write(chip, chip->cfg_addr_base,
@@ -6519,7 +6517,7 @@ static int richtap_load_prebake(struct haptics_chip *chip, u8 *data, u32 length)
 	 * Before allocating samples buffer, free the old sample
 	 * buffer first if it's not been freed.
 	 */
-	kvfree(fifo->samples);
+	kfree(fifo->samples);
 	fifo->samples = kcalloc(custom_data.length, sizeof(u8), GFP_KERNEL);
 	if (!fifo->samples) {
 		rc = -ENOMEM;
@@ -6554,7 +6552,7 @@ static int richtap_load_prebake(struct haptics_chip *chip, u8 *data, u32 length)
 
 	return 0;
 cleanup:
-	kvfree(fifo->samples);
+	kfree(fifo->samples);
 	fifo->samples = NULL;
 unlock:
 	mutex_unlock(&chip->play.lock);
