@@ -293,7 +293,7 @@ static const struct rpmsg_endpoint_ops glink_endpoint_ops;
 #define GLINK_CMD_RX_INTENT_REQ		7
 #define GLINK_CMD_RX_INTENT_REQ_ACK	8
 #define GLINK_CMD_TX_DATA		9
-#define GLINK_CMD_TX_DATA_ZERO_COPY	10
+#define GLINK_CMD_TX_DATA_ZERO_COPY 	10
 #define GLINK_CMD_CLOSE_ACK		11
 #define GLINK_CMD_TX_DATA_CONT		12
 #define GLINK_CMD_READ_NOTIF		13
@@ -2004,9 +2004,8 @@ static int __qcom_glink_send(struct glink_channel *channel,
 				    chunk_size, wait);
 
 		/* Mark intent available if we failed */
-		if (ret) {
-			if (intent)
-				intent->in_use = false;
+		if (ret && intent) {
+			intent->in_use = false;
 			break;
 		}
 	}

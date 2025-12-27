@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
- * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/module.h>
@@ -125,6 +124,9 @@
 
 #define SS_PHY_CTRL_REG		(QSCRATCH_REG_OFFSET + 0x30)
 #define LANE0_PWR_PRESENT	BIT(24)
+
+#define USB_STS_REG		(QSCRATCH_REG_OFFSET + 0xF8)
+#define USB_UTMI_SUSPEND_N	BIT(4)
 
 /* USB DBM Hardware registers */
 #define DBM_REG_OFFSET		0xF8000
@@ -513,6 +515,12 @@ struct dwc3_msm {
 	struct clk		*bus_aggr_clk;
 	struct clk		*noc_aggr_clk;
 	struct clk		*cfg_ahb_clk;
+	struct clk		*cfg_noc_clk;
+	struct clk		*noc_aggr_north_ahb_clk;
+	struct clk		*noc_aggr_south_ahb_clk;
+	struct clk		*noc_aggr_north_axi_clk;
+	struct clk		*noc_aggr_south_axi_clk;
+	struct clk		*noc_sys_clk;
 	struct reset_control	*core_reset;
 	struct regulator	*dwc3_gdsc;
 
@@ -3011,6 +3019,7 @@ static int dwc3_msm_link_clk_reset(struct dwc3_msm *mdwc, bool assert)
 
 	if (assert) {
 		disable_irq(mdwc->wakeup_irq[PWR_EVNT_IRQ].irq);
+		disable_irq_wake(mdwc->wakeup_irq[PWR_EVNT_IRQ].irq);
 		/* Using asynchronous block reset to the hardware */
 		dev_dbg(mdwc->dev, "block_reset ASSERT\n");
 		clk_disable_unprepare(mdwc->utmi_clk);
@@ -3030,6 +3039,7 @@ static int dwc3_msm_link_clk_reset(struct dwc3_msm *mdwc, bool assert)
 		clk_prepare_enable(mdwc->core_clk);
 		clk_prepare_enable(mdwc->sleep_clk);
 		clk_prepare_enable(mdwc->utmi_clk);
+		enable_irq_wake(mdwc->wakeup_irq[PWR_EVNT_IRQ].irq);
 		enable_irq(mdwc->wakeup_irq[PWR_EVNT_IRQ].irq);
 	}
 
@@ -3513,6 +3523,7 @@ static int dwc3_msm_prepare_suspend(struct dwc3_msm *mdwc, bool ignore_p3_state)
 {
 	unsigned long timeout;
 	u32 reg = 0;
+	int ret = 0;
 
 	if (!mdwc->in_host_mode && !mdwc->in_device_mode)
 		return 0;
@@ -3524,6 +3535,13 @@ static int dwc3_msm_prepare_suspend(struct dwc3_msm *mdwc, bool ignore_p3_state)
 			return -EBUSY;
 		}
 	}
+
+	/* Read QSCRATCH USB status register to get utmi suspend status from the controller*/
+	reg = dwc3_msm_read_reg(mdwc->base, USB_STS_REG);
+
+	/* HSPHY is in L2, return from here */
+	if (!(reg & USB_UTMI_SUSPEND_N))
+		return 0;
 
 	/* Clear previous L2 events */
 	dwc3_msm_write_reg(mdwc->base, PWR_EVNT_IRQ_STAT_REG,
@@ -3541,14 +3559,16 @@ static int dwc3_msm_prepare_suspend(struct dwc3_msm *mdwc, bool ignore_p3_state)
 		if (reg & PWR_EVNT_LPM_IN_L2_MASK)
 			break;
 	}
-	if (!(reg & PWR_EVNT_LPM_IN_L2_MASK))
+	if (!(reg & PWR_EVNT_LPM_IN_L2_MASK)) {
 		dev_err(mdwc->dev, "could not transition HS PHY to L2\n");
+		ret = -EBUSY;
+	}
 
 	/* Clear L2 event bit */
 	dwc3_msm_write_reg(mdwc->base, PWR_EVNT_IRQ_STAT_REG,
 		PWR_EVNT_LPM_IN_L2_MASK);
 
-	return 0;
+	return mdwc->in_host_mode ? ret : 0;
 }
 
 static void dwc3_set_phy_speed_flags(struct dwc3_msm *mdwc)
@@ -3821,7 +3841,7 @@ static int dwc3_clk_enable_disable(struct dwc3_msm *mdwc, bool enable, bool togg
 	long core_clk_rate;
 
 	if (!enable)
-		goto disable_bus_aggr_clk;
+		goto disable_noc_sys_clk;
 
 	if (toggle_sleep) {
 		ret = clk_prepare_enable(mdwc->sleep_clk);
@@ -3872,9 +3892,56 @@ static int dwc3_clk_enable_disable(struct dwc3_msm *mdwc, bool enable, bool togg
 		goto disable_utmi_clk;
 	}
 
+	ret = clk_prepare_enable(mdwc->cfg_noc_clk);
+	if (ret < 0) {
+		dev_err(mdwc->dev, "%s: cfg_noc_clk enable failed\n", __func__);
+		goto disable_bus_aggr_clk;
+	}
+
+	ret = clk_prepare_enable(mdwc->noc_aggr_north_ahb_clk);
+	if (ret < 0) {
+		dev_err(mdwc->dev, "%s: noc_aggr_north_ahb_clk enable failed\n", __func__);
+		goto disable_cfg_noc_clk;
+	}
+
+	ret = clk_prepare_enable(mdwc->noc_aggr_south_ahb_clk);
+	if (ret < 0) {
+		dev_err(mdwc->dev, "%s: noc_aggr_south_ahb_clk enable failed\n", __func__);
+		goto disable_noc_aggr_north_ahb_clk;
+	}
+
+	ret = clk_prepare_enable(mdwc->noc_aggr_north_axi_clk);
+	if (ret < 0) {
+		dev_err(mdwc->dev, "%s: noc_aggr_north_axi_clk enable failed\n", __func__);
+		goto disable_noc_aggr_south_ahb_clk;
+	}
+
+	ret = clk_prepare_enable(mdwc->noc_aggr_south_axi_clk);
+	if (ret < 0) {
+		dev_err(mdwc->dev, "%s: noc_aggr_south_axi_clk enable failed\n", __func__);
+		goto disable_noc_aggr_north_axi_clk;
+	}
+
+	ret = clk_prepare_enable(mdwc->noc_sys_clk);
+	if (ret < 0) {
+		dev_err(mdwc->dev, "%s: noc_sys_clk enable failed\n", __func__);
+		goto disable_noc_aggr_south_axi_clk;
+	}
 	return 0;
 
 	/* Disable clocks */
+disable_noc_sys_clk:
+	clk_disable_unprepare(mdwc->noc_sys_clk);
+disable_noc_aggr_south_axi_clk:
+	clk_disable_unprepare(mdwc->noc_aggr_south_axi_clk);
+disable_noc_aggr_north_axi_clk:
+	clk_disable_unprepare(mdwc->noc_aggr_north_axi_clk);
+disable_noc_aggr_south_ahb_clk:
+	clk_disable_unprepare(mdwc->noc_aggr_south_ahb_clk);
+disable_noc_aggr_north_ahb_clk:
+	clk_disable_unprepare(mdwc->noc_aggr_north_ahb_clk);
+disable_cfg_noc_clk:
+	clk_disable_unprepare(mdwc->cfg_noc_clk);
 disable_bus_aggr_clk:
 	clk_disable_unprepare(mdwc->bus_aggr_clk);
 disable_utmi_clk:
@@ -3947,6 +4014,7 @@ static void dwc3_msm_suspend_phy(struct dwc3_msm *mdwc)
 
 	if (mdwc->lpm_flags & MDWC3_USE_PWR_EVENT_IRQ_FOR_WAKEUP) {
 		dwc3_msm_set_pwr_events(mdwc, true);
+		enable_irq_wake(mdwc->wakeup_irq[PWR_EVNT_IRQ].irq);
 		enable_irq(mdwc->wakeup_irq[PWR_EVNT_IRQ].irq);
 	}
 }
@@ -4089,8 +4157,10 @@ static int dwc3_msm_suspend(struct dwc3_msm *mdwc, bool force_power_collapse,
 	}
 
 	if (mdwc->use_pwr_event_for_wakeup &&
-			!(mdwc->lpm_flags & MDWC3_SS_PHY_SUSPEND) && enable_wakeup)
+			!(mdwc->lpm_flags & MDWC3_SS_PHY_SUSPEND) && enable_wakeup) {
+		enable_irq_wake(mdwc->wakeup_irq[PWR_EVNT_IRQ].irq);
 		enable_irq(mdwc->wakeup_irq[PWR_EVNT_IRQ].irq);
+	}
 
 	dev_info(mdwc->dev, "DWC3 in low power mode\n");
 	dbg_event(0xFF, "Ctl Sus", atomic_read(&mdwc->in_lpm));
@@ -4217,6 +4287,7 @@ static int dwc3_msm_resume(struct dwc3_msm *mdwc)
 	atomic_set(&mdwc->in_lpm, 0);
 
 	/* enable power evt irq for IN P3 detection */
+	enable_irq_wake(mdwc->wakeup_irq[PWR_EVNT_IRQ].irq);
 	enable_irq(mdwc->wakeup_irq[PWR_EVNT_IRQ].irq);
 
 	/* Disable HSPHY auto suspend */
@@ -4688,6 +4759,30 @@ static int dwc3_msm_get_clk_gdsc(struct dwc3_msm *mdwc)
 			return ret;
 		}
 	}
+
+	mdwc->cfg_noc_clk = devm_clk_get(mdwc->dev, "cfg_noc_clk");
+	if (IS_ERR(mdwc->cfg_noc_clk))
+		mdwc->cfg_noc_clk = NULL;
+
+	mdwc->noc_aggr_north_ahb_clk = devm_clk_get(mdwc->dev, "noc_aggr_north_ahb_clk");
+	if (IS_ERR(mdwc->noc_aggr_north_ahb_clk))
+		mdwc->noc_aggr_north_ahb_clk = NULL;
+
+	mdwc->noc_aggr_south_ahb_clk = devm_clk_get(mdwc->dev, "noc_aggr_south_ahb_clk");
+	if (IS_ERR(mdwc->noc_aggr_south_ahb_clk))
+		mdwc->noc_aggr_south_ahb_clk = NULL;
+
+	mdwc->noc_aggr_north_axi_clk = devm_clk_get(mdwc->dev, "noc_aggr_north_axi_clk");
+	if (IS_ERR(mdwc->noc_aggr_north_axi_clk))
+		mdwc->noc_aggr_north_axi_clk = NULL;
+
+	mdwc->noc_aggr_south_axi_clk = devm_clk_get(mdwc->dev, "noc_aggr_south_axi_clk");
+	if (IS_ERR(mdwc->noc_aggr_south_axi_clk))
+		mdwc->noc_aggr_south_axi_clk = NULL;
+
+	mdwc->noc_sys_clk = devm_clk_get(mdwc->dev, "noc_sys_clk");
+	if (IS_ERR(mdwc->noc_sys_clk))
+		mdwc->noc_sys_clk = NULL;
 
 	return 0;
 }
@@ -6693,45 +6788,32 @@ static int dwc3_msm_host_notifier(struct notifier_block *nb,
 	struct usb_hcd *hcd;
 	struct usb_device *udev = ptr;
 	struct usb_bus *ubus = ptr;
-	struct xhci_hcd *xhci;
 
 	if (!dwc->xhci)
 		return NOTIFY_DONE;
 
-	hcd = platform_get_drvdata(dwc->xhci);
-	if (!hcd)
+	/* Get bus from udev for device events */
+	if (event == USB_DEVICE_ADD || event == USB_DEVICE_REMOVE)
+		ubus = udev->bus;
+
+	/* Compare USB bus and DWC3 device names; return if different */
+	if (strcmp(dev_name(ubus->sysdev), dev_name(dwc->sysdev)) != 0)
 		return NOTIFY_DONE;
 
-	if (event == USB_BUS_ADD) {
-		/*
-		 * If the hcd or the shared_hcd do not match the one
-		 * associated with the bus, bail out.
-		 */
-		if (hcd != bus_to_hcd(ubus) &&
-		    hcd->shared_hcd != bus_to_hcd(ubus))
-			return NOTIFY_DONE;
+	hcd = platform_get_drvdata(dwc->xhci);
 
+	if (event == USB_BUS_ADD) {
 		if (usb_hcd_is_primary_hcd(hcd)) {
-			xhci = hcd_to_xhci(hcd);
+			struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 
 			if (mdwc->enable_host_slow_suspend)
 				xhci->quirks |= XHCI_SLOW_SUSPEND;
 		}
 	}
 
+	/* Beyond this point, only deal with USB device events */
 	if (event != USB_DEVICE_ADD && event != USB_DEVICE_REMOVE)
 		return NOTIFY_DONE;
-
-	/*
-	 * If the USB device's bus does not match either the primary HCD's
-	 * bus or the shared HCD's bus, bail out.
-	 */
-	if (udev->bus != hcd_to_bus(hcd)) {
-		if (!hcd->shared_hcd ||
-		    udev->bus != hcd_to_bus(hcd->shared_hcd)) {
-			return NOTIFY_DONE;
-		}
-	}
 
 	/*
 	 * Regardless of where the device is in the host tree, the USB generic
