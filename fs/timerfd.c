@@ -259,6 +259,11 @@ static __poll_t timerfd_poll(struct file *file, poll_table *wait)
 		events |= EPOLLIN;
 	spin_unlock_irqrestore(&ctx->wqh.lock, flags);
 
+	if (ctx->expired && isalarm(ctx))
+		pr_info("%s: comm:%s pid:%d exp:%llu\n", __func__,
+			current->comm, current->pid,
+			ktime_to_ms(ctx->t.alarm.node.expires));
+
 	return events;
 }
 
