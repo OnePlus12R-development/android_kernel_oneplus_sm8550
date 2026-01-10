@@ -222,7 +222,7 @@ static void clear_sw_init_done_error(struct qcom_spss *spss, int err)
 static void clear_wdog(struct qcom_spss *spss)
 {
 	dev_err(spss->dev, "wdog bite received from %s!\n", spss->rproc->name);
-	dev_err(spss->dev, "rproc recovery state: %s\n", spss->rproc->recovery_disabled ?
+	dev_err(spss->dev, "L225 rproc recovery state: %s\n", spss->rproc->recovery_disabled ?
 		"disabled and lead to device crash" : "enabled and kick reovery process");
 	if (spss->rproc->recovery_disabled) {
 		spss->rproc->state = RPROC_CRASHED;
