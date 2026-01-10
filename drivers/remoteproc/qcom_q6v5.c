@@ -114,7 +114,7 @@ static irqreturn_t q6v5_wdog_interrupt(int irq, void *data)
 	}
 
 	q6v5->running = false;
-	dev_err(q6v5->dev, "rproc recovery state: %s\n",
+	dev_err(q6v5->dev, "L117 rproc recovery state: %s\n",
 		q6v5->rproc->recovery_disabled ?
 		"disabled and lead to device crash" :
 		"enabled and kick reovery process");
@@ -152,7 +152,7 @@ static irqreturn_t q6v5_fatal_interrupt(int irq, void *data)
 	}
 
 	q6v5->running = false;
-	dev_err(q6v5->dev, "rproc recovery state: %s\n",
+	dev_err(q6v5->dev, "L155 rproc recovery state: %s\n",
 		q6v5->rproc->recovery_disabled ? "disabled and lead to device crash" :
 		"enabled and kick reovery process");
 	if (q6v5->rproc->recovery_disabled) {
