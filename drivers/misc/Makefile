@@ -89,6 +89,8 @@ obj-$(CONFIG_OPLUS_GPIO) += oplus_gpio/oplus_gpio.o
 obj-$(CONFIG_HAPTIC_FEEDBACK) += aw8697_haptic/
 #endif
 
+obj-$(CONFIG_AWINIC_HAPTIC_HV) += awinic_haptic_hv/
+
 #ifdef OPLUS_SECURE_COMMON
 obj-$(CONFIG_OPLUS_SECURE_COMMON) += oplus_secure/
 #endif /* OPLUS_SECURE_COMMON */

@@ -582,5 +582,6 @@ source "drivers/misc/pvpanic/Kconfig"
 source "drivers/misc/qrc/Kconfig"
 source "drivers/misc/tri_state_key/Kconfig"
 source "drivers/misc/aw8697_haptic/Kconfig"
+source "drivers/misc/awinic_haptic_hv/Kconfig"
 source "drivers/misc/oplus_secure/Kconfig"
 endmenu
