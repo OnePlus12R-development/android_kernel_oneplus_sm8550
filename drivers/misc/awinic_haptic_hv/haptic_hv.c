@@ -176,6 +176,15 @@ static int parse_dt_gpio(struct device *dev, struct aw_haptic *aw_haptic, struct
 	val = of_property_read_u8(np, "mode", &aw_haptic->info.mode);
 	if (val != 0)
 		aw_info("mode not found");
+	val = of_property_read_u8(np, "ram_loop_wave", &aw_haptic->info.ram_loop_wave);
+	if (val != 0)
+		aw_info("ram_loop_wave not found");
+	val = of_property_count_u8_elems(np, "effect_ram_id");
+	if (val > 0) {
+		aw_haptic->info.effect_num = min_t(int, val, AW_EFFECT_NUM_MAX);
+		of_property_read_u8_array(np, "effect_ram_id", aw_haptic->info.effect_ram_id,
+					  aw_haptic->info.effect_num);
+	}
 #ifdef AW_DOUBLE
 	if (of_device_is_compatible(np, "awinic,haptic_hv_l")) {
 		aw_info("compatible left vibrator.");
@@ -909,6 +918,42 @@ static void input_vib_work_routine(struct work_struct *work)
 	mutex_unlock(&aw_haptic->lock);
 }
 
+/*
+ * Effects come as AOSP effect ids, like for the QTI vibrator HAL: play the RAM waveform the
+ * devicetree maps the effect to, at the strength of its magnitude, and return how long it plays
+ * in custom_data, as <id, seconds, milliseconds>. An effect without a waveform plays for 0 ms,
+ * so that its fallback plays instead.
+ */
+static int input_map_effect(struct aw_haptic *aw_haptic, struct ff_effect *effect, short *wav_id)
+{
+	short effect_id = *wav_id;
+	short length[2] = {0, 0};
+	uint32_t length_ms = 0;
+	int gain;
+
+	*wav_id = 0;
+	if (effect_id >= 0 && effect_id < aw_haptic->info.effect_num)
+		*wav_id = aw_haptic->info.effect_ram_id[effect_id];
+	if (*wav_id >= aw_haptic->ram.ram_num || *wav_id >= AW_RAM_WAVE_NUM_MAX)
+		*wav_id = 0;
+
+	if (*wav_id) {
+		length_ms = aw_haptic->ram.wave_len_ms[*wav_id];
+		gain = effect->u.periodic.magnitude * 0x80 / 0x7fff;
+		aw_haptic->gain = clamp(gain, 1, 0x80);
+	}
+	aw_info("effect id = %d, waveform id = %d, %u ms", effect_id, *wav_id, length_ms);
+
+	if (effect->u.periodic.custom_len >= sizeof(short) * 3) {
+		length[0] = length_ms / 1000;
+		length[1] = length_ms % 1000;
+		if (copy_to_user(effect->u.periodic.custom_data + 1, length, sizeof(length)))
+			return -EFAULT;
+	}
+
+	return 0;
+}
+
 static int input_upload_effect(struct input_dev *dev, struct ff_effect *effect,
 			       struct ff_effect *old)
 {
@@ -922,7 +967,11 @@ static int input_upload_effect(struct input_dev *dev, struct ff_effect *effect,
 	case FF_CONSTANT:
 		aw_haptic->activate_mode = AW_RAM_LOOP_MODE;
 		aw_haptic->duration = effect->replay.length;
-		aw_haptic->index = aw_haptic->ram.ram_num;
+		/* An effect may have played at its own strength */
+		if (aw_haptic->ff_gain)
+			aw_haptic->gain = aw_haptic->ff_gain;
+		aw_haptic->index = aw_haptic->info.ram_loop_wave ?
+				   aw_haptic->info.ram_loop_wave : aw_haptic->ram.ram_num;
 		aw_info("waveform id = %d", aw_haptic->index);
 		break;
 	case FF_PERIODIC:
@@ -931,6 +980,14 @@ static int input_upload_effect(struct input_dev *dev, struct ff_effect *effect,
 			aw_err("copy from user error %d!!", ret);
 			mutex_unlock(&aw_haptic->lock);
 			return -ERANGE;
+		}
+		if (aw_haptic->info.effect_num) {
+			ret = input_map_effect(aw_haptic, effect, &wav_id);
+			if (ret || !wav_id) {
+				aw_haptic->activate_mode = AW_STANDBY_MODE;
+				mutex_unlock(&aw_haptic->lock);
+				return ret;
+			}
 		}
 		aw_info("waveform id = %d", wav_id);
 		wav_id_max = aw_haptic->rtp_num + aw_haptic->ram.ram_num - 1;
@@ -980,6 +1037,9 @@ static int input_playback(struct input_dev *dev, int effect_id, int val)
 	case AW_RTP_MODE:
 		queue_work(aw_haptic->work_queue, &aw_haptic->rtp_work);
 		break;
+	case AW_STANDBY_MODE:
+		/* An effect without a waveform */
+		break;
 	default:
 		aw_err("Unsupported mode: %d", aw_haptic->activate_mode);
 		break;
@@ -1004,6 +1064,7 @@ static void input_set_gain(struct input_dev *dev, uint16_t gain)
 	if (gain > 0x7fff)
 		gain = 0x7fff;
 	aw_haptic->gain = gain * 0x80 / 0x7fff;
+	aw_haptic->ff_gain = aw_haptic->gain;
 	queue_work(aw_haptic->work_queue, &aw_haptic->gain_work);
 	aw_info("aw_haptic->gain = 0x%02x", aw_haptic->gain);
 }
@@ -1336,6 +1397,27 @@ static int irq_config(struct device *dev, struct aw_haptic *aw_haptic)
 	return 0;
 }
 
+/* How long each RAM waveform plays, from the waveform table of the firmware */
+static void ram_get_wave_len(struct aw_haptic *aw_haptic, struct aw_haptic_container *aw_fw)
+{
+	uint8_t *ram = aw_fw->data + aw_haptic->ram.ram_shift;
+	int len = aw_fw->len - aw_haptic->ram.ram_shift;
+	uint32_t start, end;
+	int entry, i;
+
+	for (i = 1; i <= aw_haptic->ram.ram_num && i < AW_RAM_WAVE_NUM_MAX; i++) {
+		entry = 1 + (i - 1) * 4;
+		if (entry + 3 >= len)
+			break;
+		start = ram[entry] << 8 | ram[entry + 1];
+		end = ram[entry + 2] << 8 | ram[entry + 3];
+		if (end < start)
+			continue;
+		aw_haptic->ram.wave_len_ms[i] =
+			DIV_ROUND_UP((end - start + 1) * 1000, AW_RAM_SAMPLE_RATE);
+	}
+}
+
 static void ram_load(const struct firmware *cont, void *context)
 {
 	uint16_t check_sum = 0;
@@ -1395,6 +1477,7 @@ static void ram_load(const struct firmware *cont, void *context)
 		mutex_unlock(&aw_haptic->lock);
 		aw_info("ram firmware update complete!");
 		get_ram_num(aw_haptic);
+		ram_get_wave_len(aw_haptic, aw_fw);
 	}
 	kfree(aw_fw);
 

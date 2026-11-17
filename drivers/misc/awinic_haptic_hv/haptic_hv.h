@@ -74,6 +74,9 @@
 #define AW_OSC_CALI_ACCURACY			(24)
 #define AW_OSC_CALI_MAX_LENGTH			(5100000)
 #define AW_TRIG_NUM				(3)
+#define AW_EFFECT_NUM_MAX			(32)
+#define AW_RAM_WAVE_NUM_MAX			(64)
+#define AW_RAM_SAMPLE_RATE			(24000)
 #define AW_RAMDATA_RD_BUFFER_SIZE		(1024)
 #define AW_RAMDATA_WR_BUFFER_SIZE		(2048)
 #define AW_EFFECT_NUMBER			(3)
@@ -533,6 +536,7 @@ struct aw_haptic_ram {
 	uint8_t version;
 	uint8_t ram_shift;
 	uint8_t baseaddr_shift;
+	uint16_t wave_len_ms[AW_RAM_WAVE_NUM_MAX];
 };
 
 struct aw_haptic_ctr {
@@ -572,6 +576,11 @@ struct aw_haptic_audio {
 struct aw_haptic_dts_info {
 	/* COMMON */
 	uint8_t mode;
+	/* RAM waveform looped for constant effects, the last one if unset */
+	uint8_t ram_loop_wave;
+	/* RAM waveform of each AOSP effect id, 0 for none */
+	uint8_t effect_ram_id[AW_EFFECT_NUM_MAX];
+	uint8_t effect_num;
 	uint8_t f0_cali_percent;
 	uint8_t duration_time[3];
 	uint32_t f0_pre;
@@ -613,6 +622,9 @@ struct aw_haptic_dts_info {
 };
 
 struct aw_haptic {
+	/* Gain set through FF_GAIN, 0 until set */
+	uint8_t ff_gain;
+
 	/* AW869X */
 	uint32_t interval_us;
 
